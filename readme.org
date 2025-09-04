@@ -1,0 +1,90 @@
+#+title: csharp-fn-parser
+#+author: Kevin Li
+
+* 简介
+- 目的: 一个用 Janet 编写的 C# 代码函数调用提取器, 基于 PEG 语法快速扫描并输出被调用的函数名.
+- 原理: 使用 =peg/match= 跳过字符串, 注释, 类型/record 定义等噪声, 仅匹配形如 =Identifier(...)= 的调用, 并排除 =if/for/while/return/=>/{= 等非调用场景.
+- 输出: 以空格分隔的函数" 标识符" 列表(仅函数名本身, 不包含命名空间或点号链).
+
+* 快速开始
+** 依赖
+- Janet 1.30+(含内置 =peg= 库)
+- 可选: =jpm= (Janet 包/构建工具)
+
+** 获取源码
+#+begin_src shell
+git clone <this-repo>
+cd csharp-fn-parser
+#+end_src
+
+** 直接运行(无需构建)
+#+begin_src shell
+janet src/main.janet Test.cs
+# 或指定任意 C# 文件路径
+janet src/main.janet path/to/YourFile.cs
+#+end_src
+
+** 使用 jpm 构建/安装
+#+begin_src shell
+# 本地构建到 build/
+jpm build
+
+# 运行已构建二进制
+./build/csharp-fn-parser Test.cs
+
+# 全局安装到 PATH(可选)
+jpm install
+csharp-fn-parser Test.cs
+#+end_src
+
+* 基本用法
+#+begin_src text
+csharp-fn-parser <file.cs>
+#+end_src
+
+- 成功时: 在标准输出打印以空格分隔的函数名.
+- 失败时: 打印错误与用法提示并退出码为 1.
+
+* 示例
+给定示例文件 =Test.cs=:
+#+begin_src csharp
+public void SayHello() {
+  Console.WriteLine("Enter your name: ");
+  var name = Console.ReadLine();
+  if (string.IsNullOrEmpty(name)) {
+    LogWarning("Name cannot be empty.");
+    return;
+  }
+  GreetUser(name);
+}
+#+end_src
+
+可能的输出(顺序去重):
+#+begin_src text
+WriteLine ReadLine LogWarning GreetUser
+#+end_src
+
+说明: 仅返回" 标识符" 本身, 不包含 =Console.= 或完全限定名.
+
+* 项目结构
+- =src/main.janet=: 主程序与 PEG 语法定义.
+- =project.janet=: jpm 项目/可执行声明.
+- =Test.cs=: 示例 C# 文件.
+- =build/=: 构建产物(执行 =jpm build= 后生成).
+
+* 设计要点
+- 关键词排除: 跳过 =if/for/while/switch/using/return/foreach/nameof/typeof/= 等伪" 调用" .
+- 结构跳过: 正确跳过字符串, 注释, 花括号块, 泛型参数尖括号与嵌套括号.
+- 类型定义处理: 跳过 =record/class/struct= 定义(含 C# 12 主构造函数).
+- 去重策略: 保序去重, 避免重复方法名干扰下游处理.
+
+* 已知局限
+- 仅捕获函数名标识符: 不保留命名空间/类型前缀(如 =Console.WriteLine= 仅返回 =WriteLine=).
+- 语法覆盖有限: 极端/新语法特性(如某些模式匹配, 运算符重载等)可能需要扩展 PEG 规则.
+- 静态分析非目标: 不解析重载/泛型约束/语义, 仅做轻量文本级提取.
+
+* 许可证
+- MIT(见 =project.janet= 中的声明).
+
+* 贡献
+- 欢迎通过 Issue/PR 提交改进: 如补充测试样例, 扩展 PEG 语法或增强输出格式(JSON/行分隔等).
