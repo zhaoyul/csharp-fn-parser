@@ -102,14 +102,25 @@
 
 
 # 主函数
+(defn usage []
+  (eprint "用法: csharp-fn-parser <your-file.cs>")
+  (eprint "说明: 只允许且必须提供一个参数。"))
+
 (defn main [& args]
-  (when (< (length args) 1)
-    (eprint "错误: 请提供一个 C# 文件的路径。")
-    (eprint "用法: csharp-fn-parser <your-file.cs>")
+  (when (not= (length args) 2)
+    (eprint "错误: 需要且只允许一个参数。")
+    (usage)
     (os/exit 1))
 
-  (def file-path (get args (- (length args) 1)))
-  (def csharp-code (slurp file-path))
+  (def file-path (get args 1))
+
+  # 尝试读取文件，若不存在或不可读则报错退出
+  (def csharp-code
+    (try
+      (slurp file-path)
+      ([e]
+        (eprint (string "错误: 无法读取文件: " file-path))
+        (os/exit 1))))
 
   # 执行 PEG 匹配
   (def matches (peg/match grammar csharp-code))
