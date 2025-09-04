@@ -47,6 +47,46 @@
     :block-comment (sequence "/*" (thru "*/"))
     :skip (choice :dqstr :sqstr :line-comment :block-comment)
 
+    # 花括号 { ... }，用于跳过 record/class/struct 的主体
+    :braces (sequence
+              "{"
+              (any (choice :skip :braces (if-not (set "{}") 1)))
+              "}")
+
+    # 修饰符（可重复出现）
+    :modifier (choice "public" "private" "protected" "internal"
+                      "abstract" "sealed" "partial" "readonly"
+                      "ref" "unsafe" "static" "new")
+    :modifiers (any (sequence :ws :modifier))
+
+    # 跳过 record 定义： [修饰符] record [class|struct]? 标识符 [<...>] ( ... ) 后面可接 ; 或 {...}
+    :record-def (sequence
+                  :modifiers
+                  :ws
+                  "record"
+                  :ws
+                  (opt (sequence (choice "class" "struct") :ws))
+                  :ident-core
+                  (opt :angles)
+                  :ws
+                  :parens
+                  :ws
+                  (opt ";"))
+
+    # 跳过 class/struct 定义（支持 C# 12 主构造函数）：
+    # [修饰符] (class|struct) 标识符 [<...>] [( ... )] [; | { ... }]
+    :type-def (sequence
+                :modifiers
+                :ws
+                (choice "class" "struct")
+                :ws
+                :ident-core
+                (opt :angles)
+                :ws
+                (opt :parens)
+                :ws
+                (opt ";"))
+
     # 一个潜在的调用：仅捕获标识符，不捕获链式访问与泛型
     :call (sequence (capture :ident-core)
                     (any :ws)
@@ -58,7 +98,7 @@
                     (not "=>"))
 
     # 主入口：全局扫描文本
-    :main (any (choice :skip :call 1))})
+    :main (any (choice :skip :record-def :type-def :call 1))})
 
 
 # 主函数
