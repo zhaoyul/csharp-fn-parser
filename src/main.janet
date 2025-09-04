@@ -1,46 +1,86 @@
-# 定义 C# 关键字，用于过滤
-(def csharp-keywords
-  @{"if" "for" "while" "switch" "catch" "using" "return" "lock" "foreach" "typeof"})
+# 定义需要忽略的 C# 关键字（看起来像调用，但并非函数调用）
+(def csharp-non-call-words
+  ["if" "for" "while" "switch" "catch" "using" "return" "lock" "foreach"
+   "typeof" "sizeof" "nameof" "checked" "unchecked" "default"])
 
-# 定义 PEG 语法
+(def keyword-set
+  (do
+    (var t @{})
+    (each k csharp-non-call-words
+      (put t k true))
+    t))
+
+(defn csharp-non-call-word? [k]
+  (get keyword-set k))
+
+# 一个简单的去重（保持顺序）
+(defn unique-preserve [xs]
+  (var seen @{})
+  (var out @[])
+  (each x xs
+    (when (not (get seen x))
+      (put seen x true)
+      (array/push out x)))
+  out)
+
+# PEG 语法：
+# - 跳过字符串/注释
+# - 匹配形如 Identifier [<...>] ( ... ) 后面不是 "{" 或 "=>" 的片段
+# - 仅捕获 "Identifier" 本身（不含限定名、泛型或括号）
 (def grammar
-  ~{:main (any (or :potential-call 1))
-    :potential-call (sequence :identifier :ws "(")
-    :ws (any (set " \t\r\n"))
-    :identifier (capture (sequence (range "a-zA-Z_")
-                                   (any (range "a-zA-Z0-9_"))))})
+  ~{:ws (any :s)
+    :ident-core (sequence (choice :a "_") (any (choice :w "_")))
+
+    # 平衡括号 ( ... )，在内部继续捕获嵌套调用
+    :parens (sequence
+              "("
+              (any (choice :skip :call :parens (if-not (set "()") 1)))
+              ")")
+
+    # 平衡尖括号 < ... >，用于跳过泛型参数
+    :angles (sequence "<" (any (choice :angles :parens (if-not (set "<>") 1))) ">")
+
+    # 字符串/字符字面量与注释（用于跳过干扰）
+    :dqstr (sequence "\"" (any (choice "\\\"" (if-not "\"" 1))) "\"")
+    :sqstr (sequence "'" (any (choice "\\'" (if-not "'" 1))) "'")
+    :line-comment (sequence "//" (any (if-not "\n" 1)))
+    :block-comment (sequence "/*" (thru "*/"))
+    :skip (choice :dqstr :sqstr :line-comment :block-comment)
+
+    # 一个潜在的调用：仅捕获标识符，不捕获链式访问与泛型
+    :call (sequence (capture :ident-core)
+                    (any :ws)
+                    (opt :angles)
+                    :ws
+                    :parens
+                    :ws
+                    (not "{")
+                    (not "=>"))
+
+    # 主入口：全局扫描文本
+    :main (any (choice :skip :call 1))})
+
 
 # 主函数
 (defn main [& args]
-  # 检查是否提供了命令行参数
-  (if (< (length args) 1)
-    (do
-      (eprint "错误: 请提供一个 C# 文件的路径。")
-      (eprint "用法: ./csharp-fn-parser <your-file.cs>")
-      (os/exit 1))
-    nil)
+  (when (< (length args) 1)
+    (eprint "错误: 请提供一个 C# 文件的路径。")
+    (eprint "用法: csharp-fn-parser <your-file.cs>")
+    (os/exit 1))
 
-  (def file-path (first args))
-  (var csharp-code nil)
+  (def file-path (get args (- (length args) 1)))
+  (def csharp-code (slurp file-path))
 
-  # 读取文件内容，并处理可能发生的错误
-  (if-let [err (try
-                 (set csharp-code (slurp file-path))
-                 nil # try block returns nil on success
-                 ([_] _))] # catch block returns the error
-    (do
-      (eprint (string/format "错误: 无法读取文件 '%s': %s" file-path err))
-      (os/exit 1)))
-
-  # 使用 PEG 匹配代码
+  # 执行 PEG 匹配
   (def matches (peg/match grammar csharp-code))
 
-  # 过滤掉关键字
+  # 过滤控制结构 / 伪函数 并去重
   (def called-functions
-    (filter |(not (csharp-keywords $))
-            matches))
+    (->> matches
+         (filter |(not (csharp-non-call-word? $)))
+         unique-preserve))
 
-  # 打印结果
   (print "在文件中找到的被调用函数:")
-  (each func called-functions
-    (print (string/format "- %s" func))))
+  (each f called-functions
+    (print (string/format "- %s" f)))
+)
