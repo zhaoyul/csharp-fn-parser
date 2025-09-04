@@ -120,7 +120,6 @@
          (filter |(not (csharp-non-call-word? $)))
          unique-preserve))
 
-  (print "在文件中找到的被调用函数:")
-  (each f called-functions
-    (print (string/format "- %s" f)))
+  #(print "在文件中找到的被调用函数:")
+  (print (string/join called-functions " " ))
 )
