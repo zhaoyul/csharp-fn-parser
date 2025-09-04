@@ -103,34 +103,36 @@
 
 # 主函数
 (defn usage []
-  (eprint "用法: csharp-fn-parser <your-file.cs>")
-  (eprint "说明: 只允许且必须提供一个参数。"))
+  (eprint "用法: csharp-fn-parser <file1.cs> [file2.cs ...]")
+  (eprint "说明: 至少提供一个文件参数；每个文件输出一行，行首为‘文件名: ’。"))
 
 (defn main [& args]
-  (when (not= (length args) 2)
-    (eprint "错误: 需要且只允许一个参数。")
+  (when (<= (length args) 1)
+    (eprint "错误: 请至少提供一个 C# 文件路径。")
     (usage)
     (os/exit 1))
 
-  (def file-path (get args 1))
+  # 约定：args[0] 为可执行名，从 args[1] 开始是文件路径
+  (def file-paths (slice args 1))
 
-  # 尝试读取文件，若不存在或不可读则报错退出
-  (def csharp-code
-    (try
-      (slurp file-path)
-      ([e]
-        (eprint (string "错误: 无法读取文件: " file-path))
-        (os/exit 1))))
+  (each file-path file-paths
+    # 尝试读取文件，若不存在或不可读则报错退出
+    (def csharp-code
+      (try
+        (slurp file-path)
+        ([e]
+          (eprint (string "错误: 无法读取文件: " file-path))
+          (os/exit 1))))
 
-  # 执行 PEG 匹配
-  (def matches (peg/match grammar csharp-code))
+    # 执行 PEG 匹配
+    (def matches (peg/match grammar csharp-code))
 
-  # 过滤控制结构 / 伪函数 并去重
-  (def called-functions
-    (->> matches
-         (filter |(not (csharp-non-call-word? $)))
-         unique-preserve))
+    # 过滤控制结构 / 伪函数 并去重
+    (def called-functions
+      (->> matches
+           (filter |(not (csharp-non-call-word? $)))
+           unique-preserve))
 
-  #(print "在文件中找到的被调用函数:")
-  (print (string/join called-functions " " ))
+    # 输出: 文件名: <path> 函数1 函数2 ...
+    (print (string  file-path ":\t" (string/join called-functions " "))))
 )

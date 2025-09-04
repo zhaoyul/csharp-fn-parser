@@ -39,11 +39,12 @@ csharp-fn-parser Test.cs
 
 * 基本用法
 #+begin_src text
-csharp-fn-parser <file.cs>
+csharp-fn-parser <file1.cs> [file2.cs ...]
 #+end_src
 
-- 成功时: 在标准输出打印以空格分隔的函数名.
-- 失败时: 打印错误与用法提示并退出码为 1.
+- 至少提供一个文件参数; 每个文件输出一行.
+- 行格式: =文件名: <path> 函数1 函数2 ...=
+- 失败时: 打印错误与用法提示并退出码为 1(任一文件不可读将报错).
 
 * 示例
 给定示例文件 =Test.cs=:
@@ -61,7 +62,7 @@ public void SayHello() {
 
 可能的输出(顺序去重):
 #+begin_src text
-WriteLine ReadLine LogWarning GreetUser
+文件名: Test.cs WriteLine ReadLine LogWarning GreetUser
 #+end_src
 
 说明: 仅返回" 标识符" 本身, 不包含 =Console.= 或完全限定名.
