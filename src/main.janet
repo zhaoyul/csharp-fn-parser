@@ -59,6 +59,15 @@
                       "ref" "unsafe" "static" "new")
     :modifiers (any (sequence :ws :modifier))
 
+    # 属性列表 [Attr(...)]，仅在声明前跳过
+    :attribute (sequence
+                 "["
+                 (any (choice :skip :parens :angles :braces :attribute
+                              (if-not (set "[]") 1)))
+                 "]")
+    :attribute-list (sequence :attribute (any (sequence :ws :attribute)))
+    :attribute-decl (sequence :attribute-list :ws (not (not :ident-core)))
+
     # 跳过 record 定义:  [修饰符] record [class|struct]? 标识符 [<...>] ( ... ) 后面可接 ; 或 {...}
     :record-def (sequence
                   :modifiers
@@ -98,7 +107,7 @@
                     (not "=>"))
 
     # 主入口: 全局扫描文本
-    :main (any (choice :skip :record-def :type-def :call 1))})
+    :main (any (choice :skip :attribute-decl :record-def :type-def :call 1))})
 
 
 # 主函数
