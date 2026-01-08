@@ -12,6 +12,10 @@ jobs:
       - name: Install Janet
         run: |
           sudo apt-get update
-          sudo apt-get install -y janet
+          sudo apt-get install -y build-essential git
+          git clone --depth 1 --branch v1.40.1 https://github.com/janet-lang/janet.git
+          cd janet
+          make
+          sudo make install
       - name: Run tests
         run: janet test/main-test.janet
